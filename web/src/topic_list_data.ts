@@ -26,6 +26,7 @@ export type TopicInfo = {
     is_active_topic: boolean;
     url: string;
     contains_unread_mention: boolean;
+    has_emoji: boolean;
 };
 
 type TopicChoiceState = {
@@ -136,6 +137,7 @@ function choose_topics(
             is_active_topic,
             url: stream_topic_history.channel_topic_permalink_hash(stream_id, topic_name),
             contains_unread_mention,
+            has_emoji: util.contains_emoji(util.get_final_topic_display_name(topic_bare_name)),
         };
 
         topic_choice_state.items.push(topic_info);

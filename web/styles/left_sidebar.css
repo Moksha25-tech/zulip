@@ -1833,6 +1833,14 @@ li.active-sub-filter {
         padding-top: var(--spacing-top-bottom-sidebar-topic-inner);
         margin: 0 0 var(--spacing-top-bottom-sidebar-topic-inner) 0;
     }
+
+    /* Increase line-height for topics containing emojis to prevent clipping on external monitors. */
+    &.has-emoji {
+        line-height: 1.4em;
+        /* Adjust padding and margin to fit within the container height */
+        padding-top: calc((var(--line-height-sidebar-row-prominent) - 1.4em) / 2);
+        margin-bottom: calc((var(--line-height-sidebar-row-prominent) - 1.4em) / 2);
+    }
 }
 
 .sidebar-topic-action-heading {

@@ -622,3 +622,8 @@ export function parse_youtube_start_time(url: string): number | undefined {
 
     return undefined;
 }
+
+export function contains_emoji(text: string): boolean {
+    // Check if the text contains any Unicode emoji characters
+    return /\p{Emoji}/u.test(text);
+}
