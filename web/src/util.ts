@@ -2,6 +2,7 @@ import _ from "lodash";
 import * as z from "zod/mini";
 
 import * as blueslip from "./blueslip.ts";
+import * as emoji from "./emoji.ts";
 import {$t} from "./i18n.ts";
 import type {MatchedMessage, Message, RawMessage} from "./message_store.ts";
 import type {UpdateMessageEvent} from "./server_event_types.ts";
@@ -519,7 +520,7 @@ export function get_final_topic_display_name(topic_name: string): string {
         }
         return realm.realm_empty_topic_display_name;
     }
-    return topic_name;
+    return process_emoji_shortcodes(topic_name);
 }
 
 export function is_topic_name_considered_empty(topic: string): boolean {
@@ -626,4 +627,40 @@ export function parse_youtube_start_time(url: string): number | undefined {
 export function contains_emoji(text: string): boolean {
     // Check if the text contains any Unicode emoji characters
     return /\p{Emoji}/u.test(text);
+}
+
+export function process_emoji_shortcodes(text: string): string {
+    // Convert emoji shortcodes like :smiling_face_with_hearts: to Unicode emojis
+    // by using the emoji module's name-to-codepoint mapping
+    const emoji_shortcode_regex = /:([a-zA-Z0-9_+-]+):/g;
+    return text.replaceAll(emoji_shortcode_regex, (match: string, emoji_name_raw: string) => {
+        // Normalize the emoji name (handle underscores, hyphens)
+        const emoji_name_normalized = emoji_name_raw.replaceAll("-", "_");
+
+        // First try to get the codepoint directly
+        let codepoint = emoji.get_emoji_codepoint(emoji_name_normalized);
+
+        // If that doesn't work, try the original name
+        if (!codepoint && emoji_name_normalized !== emoji_name_raw) {
+            codepoint = emoji.get_emoji_codepoint(emoji_name_raw);
+        }
+
+        // As a fallback, check if it's a canonical emoji name
+        if (!codepoint) {
+            const canonical_name = emoji.get_canonical_name(emoji_name_normalized);
+            if (canonical_name) {
+                codepoint = emoji.get_emoji_codepoint(canonical_name);
+            }
+        }
+
+        if (codepoint) {
+            const parts: string[] = codepoint.split("-");
+            let emoji_unicode = "";
+            for (const hex of parts) {
+                emoji_unicode += String.fromCodePoint(Number.parseInt(hex, 16));
+            }
+            return emoji_unicode;
+        }
+        return match; // Return original if not found
+    });
 }
