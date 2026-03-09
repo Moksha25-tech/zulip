@@ -537,7 +537,13 @@ function handleEmoji({
     // Otherwise we'll look at Unicode emoji to render with an emoji
     // span using the spritesheet; and if it isn't one of those
     // either, we pass through the plain text syntax unmodified.
-    const emoji_url = get_realm_emoji_url(emoji_name);
+    let emoji_url = get_realm_emoji_url(emoji_name);
+
+    // If not found, try with name normalization (replace hyphens with underscores)
+    if (!emoji_url && emoji_name.includes("-")) {
+        const normalized_name = emoji_name.replaceAll("-", "_");
+        emoji_url = get_realm_emoji_url(normalized_name);
+    }
 
     if (emoji_url) {
         return `<img alt="${_.escape(alt_text)}" class="emoji" src="${_.escape(
@@ -545,7 +551,15 @@ function handleEmoji({
         )}" title="${_.escape(title)}">`;
     }
 
-    const codepoint = get_emoji_codepoint(emoji_name);
+    // Try to get codepoint with the original name
+    let codepoint = get_emoji_codepoint(emoji_name);
+
+    // If not found, try with name normalization (replace hyphens with underscores)
+    if (!codepoint && emoji_name.includes("-")) {
+        const normalized_name = emoji_name.replaceAll("-", "_");
+        codepoint = get_emoji_codepoint(normalized_name);
+    }
+
     if (codepoint) {
         return make_emoji_span(codepoint, title, alt_text);
     }
@@ -753,6 +767,41 @@ export function parse({
         });
     }
 
+    function preprocess_emoji_shortcodes(src: string): string {
+        // Pre-process emoji shortcodes to ensure they are properly converted
+        // to Unicode emojis. This handles cases where emoji names might use
+        // hyphens instead of underscores, or where lookups might fail.
+        return src.replaceAll(/:([a-zA-Z0-9_+-]+):/g, (match: string, emoji_name_raw: string) => {
+            // Try original name first
+            let codepoint = helper_config.get_emoji_codepoint(emoji_name_raw);
+
+            // If not found with hyphens, try with underscores
+            if (!codepoint && emoji_name_raw.includes("-")) {
+                const normalized_name = emoji_name_raw.replaceAll("-", "_");
+                codepoint = helper_config.get_emoji_codepoint(normalized_name);
+            }
+
+            // If still not found, try the reverse (underscores to hyphens)
+            if (!codepoint && emoji_name_raw.includes("_")) {
+                const hyphenated_name = emoji_name_raw.replaceAll("_", "-");
+                codepoint = helper_config.get_emoji_codepoint(hyphenated_name);
+            }
+
+            // If we found a codepoint, convert it to Unicode emoji
+            if (codepoint) {
+                const parts: string[] = codepoint.split("-");
+                let emoji_unicode = "";
+                for (const hex of parts) {
+                    emoji_unicode += String.fromCodePoint(Number.parseInt(hex, 16));
+                }
+                return emoji_unicode;
+            }
+
+            // Return original if not found
+            return match;
+        });
+    }
+
     // Disable headings
     // We only keep the # Heading format.
     disable_markdown_regex(marked.Lexer.rules.tables, "lheading");
@@ -845,7 +894,11 @@ export function parse({
         smartypants: false,
         zulip: true,
         renderer,
-        preprocessors: [preprocess_code_blocks, preprocess_translate_emoticons],
+        preprocessors: [
+            preprocess_code_blocks,
+            preprocess_translate_emoticons,
+            preprocess_emoji_shortcodes,
+        ],
     };
 
     return parse_with_options(raw_content, helper_config, options);
